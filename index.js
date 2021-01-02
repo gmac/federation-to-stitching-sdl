@@ -1,6 +1,13 @@
 const { stitchingDirectives } = require('@graphql-tools/stitching-directives');
 const { parse, print, Kind, buildSchema } = require('graphql');
 const defaultStitchingDirectives = stitchingDirectives();
+const extensionKind = /Extension$/;
+const entityKinds = [
+  Kind.OBJECT_TYPE_DEFINITION,
+  Kind.OBJECT_TYPE_EXTENSION,
+  Kind.INTERFACE_TYPE_DEFINITION,
+  Kind.INTERFACE_TYPE_EXTENSION,
+];
 
 function parseSelectionSetKeys(selectionSet) {
   return parse(selectionSet).definitions[0].selectionSet.selections.map(sel => sel.name.value);
@@ -20,13 +27,22 @@ module.exports = function federationToStitchingSDL(federationSDL, stitchingConfi
   stitchingConfig = stitchingConfig || defaultStitchingDirectives;
   const doc = parse(federationSDL);
   const entityTypes = [];
+  const baseTypeNames = doc.definitions.reduce((memo, typeDef) => {
+    if (!extensionKind.test(typeDef.kind) && typeDef.name) {
+      memo[typeDef.name.value] = true;
+    }
+    return memo;
+  }, {});
 
   doc.definitions.forEach(typeDef => {
     // Un-extend all types (remove "extends" keywords)...
     // extended types are invalid GraphQL without a local base type to extend from.
     // Stitching merges flat types in lieu of hierarchical extensions.
-    typeDef.kind = typeDef.kind.replace(/Extension$/, 'Definition');
-    if (typeDef.kind !== Kind.OBJECT_TYPE_DEFINITION) return;
+    if (extensionKind.test(typeDef.kind) && !baseTypeNames[typeDef.name.value]) {
+      typeDef.kind = typeDef.kind.replace(extensionKind, 'Definition');
+    }
+
+    if (!entityKinds.includes(typeDef.kind)) return;
 
     // Find object definitions with "@key" directives;
     // these are federated entities that get turned into merged types.
@@ -43,10 +59,8 @@ module.exports = function federationToStitchingSDL(federationSDL, stitchingConfi
     if (!keyDirs.length) return;
 
     // Setup stitching MergedTypeConfig for all federated entities:
-    entityTypes.push(typeDef.name.value);
     const selectionSet = `{ ${ keyDirs.map(dir => dir.arguments[0].value.value).join(' ') } }`;
     const keyFields = parseSelectionSetKeys(selectionSet);
-
     const keyDir = keyDirs[0];
     keyDir.name.value = stitchingConfig.keyDirective.name;
     keyDir.arguments[0].name.value = 'selectionSet';
@@ -71,6 +85,10 @@ module.exports = function federationToStitchingSDL(federationSDL, stitchingConfi
         }
       });
     });
+
+    if (typeDef.kind === Kind.OBJECT_TYPE_DEFINITION || typeDef.kind === Kind.OBJECT_TYPE_EXTENSION) {
+      entityTypes.push(typeDef.name.value);
+    }
   });
 
   // Federation service SDLs are incomplete because they omit the federation spec itself...
@@ -81,7 +99,7 @@ module.exports = function federationToStitchingSDL(federationSDL, stitchingConfi
     const queryDef = getQueryTypeDef(doc.definitions);
     const entitiesSchema = parse(`
       scalar _Any
-      union _Entity = ${entityTypes.join(' | ')}
+      union _Entity = ${entityTypes.filter((v, i, a) => a.indexOf(v) === i).join(' | ')}
       type Query { _entities(representations: [_Any!]!): [_Entity]! @${ stitchingConfig.mergeDirective.name } }
     `).definitions;
 

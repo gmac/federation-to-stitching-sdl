@@ -1,0 +1,16 @@
+{
+  "name": "federation-to-stitching-sdl",
+  "version": "1.0.0",
+  "main": "index.js",
+  "license": "MIT",
+  "scripts": {
+    "test": "jest test"
+  },
+  "dependencies": {
+    "@graphql-tools/stitching-directives": "^1.1.0",
+    "graphql": "^15.4.0"
+  },
+  "devDependencies": {
+    "jest": "^26.6.3"
+  }
+}

@@ -1,1 +1,1 @@
-# federation-to-stitching-sdl
+# Federation SDL to Stitching SDL

@@ -1,6 +1,6 @@
 {
   "name": "federation-to-stitching-sdl",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "main": "index.js",
   "license": "MIT",
   "scripts": {
@@ -24,7 +24,7 @@
   "keywords": [
     "graphql"
   ],
-  "author": "",
+  "author": "gmacwilliam",
   "bugs": {
     "url": "https://github.com/gmac/federation-to-stitching-sdl/issues"
   },

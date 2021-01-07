@@ -1,8 +1,8 @@
 # Federation SDL to Stitching SDL
 
-This utility converts an [Apollo Federation SDL](https://www.apollographql.com/docs/federation/federation-spec/) string into a [Schema Stitching SDL](https://www.graphql-tools.com/docs/stitch-directives-sdl/) string. Schema Stitching supports freeform service bindings that may integrate with any GraphQL query, including the `_entities` query setup by [Federation services](https://github.com/apollographql/federation). That means any Federation SDL may be converted and plugged into a Schema Stitching gateway. For example...
+This utility converts an [Apollo Federation SDL](https://www.apollographql.com/docs/federation/federation-spec/) string into a [Schema Stitching SDL](https://www.graphql-tools.com/docs/stitch-directives-sdl/) string. Schema Stitching supports freeform service bindings that may integrate with any GraphQL query, including the `_entities` query setup by [Federation services](https://github.com/apollographql/federation). That means any Federation SDL may be converted to a Stitching SDL and added to a stitched gateway...
 
-**Federation SDL**
+**Federation SDL:**
 
 ```graphql
 type Widget @key(fields: 'id') {
@@ -14,7 +14,7 @@ type Widget @key(fields: 'id') {
 }
 ```
 
-**Stitching SDL**
+**converted Stitching SDL:**
 
 ```graphql
 type Widget @key(selectionSet: '{ id }') {
@@ -32,7 +32,7 @@ type Query {
 }
 ```
 
-The translated SDL is configured for use with the Schema Stitching query planner, see complete [translation logic summary](#translation-logic) below.
+The translated SDL is configured for the Schema Stitching query planner, see complete [translation logic summary](#translation-logic) below.
 
 ## Usage
 
@@ -42,7 +42,17 @@ Install the package:
 npm install federation-to-stitching-sdl
 ```
 
-Convert a Federation SDL:
+Fetch the SDL from a Federation service:
+
+```graphql
+query {
+  _service {
+    sdl
+  }
+}
+```
+
+Convert the Federation SDL to a Stitching SDL:
 
 ```js
 const federationToStitchingSDL = require('federation-to-stitching-sdl');
@@ -61,53 +71,43 @@ A working example can be found in the [Schema Stitching Handbook](https://github
 const federationToStitchingSDL = require('federation-to-stitching-sdl');
 const { stitchSchemas } = require('@graphql-tools/stitch');
 const { stitchingDirectives } = require('@graphql-tools/stitching-directives');
-const { stitchingDirectivesTransformer } = stitchingDirectives();
 const { buildSchema, print } = require('graphql');
 const { fetch } = require('cross-fetch');
+const stitchingConfig = stitchingDirectives();
 
-function makeRemoteExecutor(url) {
-  return async ({ document, variables }) => {
-    const query = typeof document === 'string' ? document : print(document);
-    const result = await fetch(url, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ query, variables }),
-    });
-    return result.json();
-  };
-}
+const executor = async ({ document, variables }) => {
+  const query = typeof document === 'string' ? document : print(document);
+  const result = await fetch('http://localhost:4001/graphql', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ query, variables }),
+  });
+  return result.json();
+};
 
-async function fetchFederationSubschema(url) {
-  const executor = makeRemoteExecutor(url);
-  const { data } = await executor({ document: '{ _service { sdl } }' });
-  const sdl = federationToStitchingSDL(data._service.sdl);
-  return {
-    schema: buildSchema(sdl),
-    executor,
-  };
-}
+const federationSDL = await executor({ document: '{ _service { sdl } }' });
+const stitchingSDL = federationToStitchingSDL(federationSDL, stitchingConfig);
 
 const gatewaySchema = stitchSchemas({
-  subschemaConfigTransforms: [stitchingDirectivesTransformer],
-  subschemas: await Promise.all([
-    fetchFederationSubschema('http://localhost:4001/graphql'),
-    fetchFederationSubschema('http://localhost:4002/graphql'),
-    fetchFederationSubschema('http://localhost:4003/graphql'),
-  ])
+  subschemaConfigTransforms: [stitchingConfig.stitchingDirectivesTransformer],
+  subschemas: [{
+    schema: buildSchema(stitchingSDL),
+    executor
+  }]
 });
 ```
 
 ## Translation logic
 
-Federation and Stitching use fundamentally similar patterns to combine underlying subservices (in fact, both tools have shared origins in [Apollo Stitching](https://www.apollographql.com/docs/federation/migrating-from-stitching/)). However, Federation SDLs are nuanced because they are incomplete (per the [spec](https://www.apollographql.com/docs/federation/federation-spec/)), they may contain baseless type extensions (which is invalid GraphQL), and they may contain fields that the service has no data for (so called "external" fields). These nuances are normalized for Schema Stitching as follows:
+Federation and Stitching use fundamentally similar patterns to combine underlying subservices (in fact, both tools have shared origins in [Apollo Stitching](https://www.apollographql.com/docs/federation/migrating-from-stitching/)). However, Federation SDLs are nuanced because they are incomplete (they omit their own [spec](https://www.apollographql.com/docs/federation/federation-spec/)), they may contain baseless type extensions (which are invalid GraphQL), and they may contain fields that the service has no data for (the "external" fields). These nuances are normalized for Schema Stitching as follows:
 
-1. Prepend stitching directives type definition string.
+1. Prepend a directives type definition string.
 1. Turn all baseless type extensions into base types.
-1. `@key(fields: "id")` becomes `@key(selectionSet: "{ id }")`.
-1. `@requires(fields: "price")` becomes `@computed(selectionSet: "{ price }")`.
-1. Fields with an `@external` directive are removed from the schema _unless they are part of the `@key`_. Stitching expects schemas to only publish fields that they actually have data for. Remaining `@external` directives are discarded.
-1. By eliminating the indirection of `@external` fields, the `@provides` directive is no longer necessary and can be discarded. Stitching's query planner can automate the optimial selection of as many fields as possible from as few services as possible.
-1. Find the names of all Entity types marked with `@key`. If there are one or more Entity names:
+1. Rewrite `@key(fields: "id")` as `@key(selectionSet: "{ id }")`.
+1. Rewrite `@requires(fields: "price")` as `@computed(selectionSet: "{ price }")`.
+1. Remove fields with an `@external` directive _unless they are part of the `@key`_. Stitching expects schemas to only publish fields that they actually have data for. Remove any remaining `@external` directives.
+1. Remove all `@provides` directives. They are no longer necessary once the indirection of `@external` fields is eliminated. Stitching's query planner can automate the optimial selection of as many fields as possible from as few services as possible.
+1. Collect the names of all types marked with `@key` (Entities). If there are one or more names:
    - Add an `_Any` scalar.
-   - Add an `_Entity` union populated with all `@key` type names.
+   - Add an `_Entity` union populated with all unique names.
    - Add an `_entities(representations: [_Any!]!): [_Entity]! @merge` query.

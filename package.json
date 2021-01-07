@@ -12,5 +12,21 @@
   },
   "devDependencies": {
     "jest": "^26.6.3"
-  }
+  },
+  "description": "This utility converts an [Apollo Federation SDL](https://www.apollographql.com/docs/federation/federation-spec/) string into a [Schema Stitching SDL](https://www.graphql-tools.com/docs/stitch-directives-sdl/) string. Schema Stitching supports freeform service bindings that may integrate with any GraphQL query, including the `_entities` query setup by [Federation services](https://github.com/apollographql/federation). That means any Federation SDL may be converted and plugged into a Schema Stitching gateway. For example...",
+  "directories": {
+    "test": "test"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/gmac/federation-to-stitching-sdl.git"
+  },
+  "keywords": [
+    "graphql"
+  ],
+  "author": "",
+  "bugs": {
+    "url": "https://github.com/gmac/federation-to-stitching-sdl/issues"
+  },
+  "homepage": "https://github.com/gmac/federation-to-stitching-sdl#readme"
 }

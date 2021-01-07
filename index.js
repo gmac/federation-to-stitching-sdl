@@ -9,10 +9,6 @@ const entityKinds = [
   Kind.INTERFACE_TYPE_EXTENSION,
 ];
 
-function parseSelectionSetKeys(selectionSet) {
-  return parse(selectionSet).definitions[0].selectionSet.selections.map(sel => sel.name.value);
-}
-
 function getQueryTypeDef(definitions) {
   const schemaDef = definitions.find(def => def.kind === Kind.SCHEMA_DEFINITION);
   const typeName = schemaDef ? schemaDef.operationTypes.find(({ operation }) => operation === 'query').type.name.value : 'Query';
@@ -60,7 +56,7 @@ module.exports = function federationToStitchingSDL(federationSDL, stitchingConfi
 
     // Setup stitching MergedTypeConfig for all federated entities:
     const selectionSet = `{ ${ keyDirs.map(dir => dir.arguments[0].value.value).join(' ') } }`;
-    const keyFields = parseSelectionSetKeys(selectionSet);
+    const keyFields = parse(selectionSet).definitions[0].selectionSet.selections.map(sel => sel.name.value);
     const keyDir = keyDirs[0];
     keyDir.name.value = stitchingConfig.keyDirective.name;
     keyDir.arguments[0].name.value = 'selectionSet';

@@ -5,22 +5,22 @@ This utility converts an [Apollo Federation SDL](https://www.apollographql.com/d
 **Federation SDL:**
 
 ```graphql
-type Widget @key(fields: 'id') {
+type Widget @key(fields: "id") {
   id: ID! @external
   name: String
   price: Int @external
-  shippingCost: Int @requires(fields: 'price')
-  parent: Widget @provides(fields: 'price')
+  shippingCost: Int @requires(fields: "price")
+  parent: Widget @provides(fields: "price")
 }
 ```
 
 **converted Stitching SDL:**
 
 ```graphql
-type Widget @key(selectionSet: '{ id }') {
+type Widget @key(selectionSet: "{ id }") {
   id: ID!
   name: String
-  shippingCost: Int @computed(selectionSet: '{ price }')
+  shippingCost: Int @computed(selectionSet: "{ price }")
   parent: Widget
 }
 
@@ -32,7 +32,7 @@ type Query {
 }
 ```
 
-The translated SDL is configured for the Schema Stitching query planner, see complete [translation logic summary](#translation-logic) below.
+The translated SDL is configured for the Schema Stitching query planner, see complete [translation logic](#translation-logic).
 
 ## Usage
 

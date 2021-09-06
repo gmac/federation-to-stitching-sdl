@@ -1,3 +1,5 @@
+**Deprecated: this code has been incorporated into the GraphQL Tools [stitching-directives package](https://github.com/ardatan/graphql-tools/blob/master/packages/stitching-directives/src/federationToStitchingSDL.ts).**
+
 # Federation SDL to Stitching SDL
 
 This utility converts an [Apollo Federation SDL](https://www.apollographql.com/docs/federation/federation-spec/) string into a [Schema Stitching SDL](https://www.graphql-tools.com/docs/stitch-directives-sdl/) string.
